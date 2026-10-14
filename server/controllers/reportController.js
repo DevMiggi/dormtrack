@@ -1,8 +1,60 @@
 import MaintenanceRequest from '../models/MaintenanceRequest.js';
+import Payment from '../models/Payment.js';
 import Room from '../models/Room.js';
+import { buildPaymentDateFilter, listBillings } from '../services/billingService.js';
 import { withAvailability } from '../services/roomService.js';
+import { roundMoney } from '../utils/calculations.js';
 
-// Revenue and outstanding reports are added in CP4.8.
+// GET /api/reports/revenue?from=&to= (D16): total collected, by month and by payment method.
+export async function getRevenueReport(req, res) {
+  const { from, to } = req.query;
+  const filter = {};
+  const dateRange = buildPaymentDateFilter(from, to); // 400 for invalid or reversed dates
+  if (dateRange) filter.paymentDate = dateRange;
+  const payments = await Payment.find(filter).sort('paymentDate');
+
+  // Group by calendar month ("YYYY-MM") in the server's local time (D2).
+  const totalsByMonth = new Map();
+  for (const payment of payments) {
+    const date = payment.paymentDate;
+    const month = `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}`;
+    totalsByMonth.set(month, (totalsByMonth.get(month) ?? 0) + payment.amount);
+  }
+  const byMonth = [...totalsByMonth].map(([month, total]) => ({ month, total: roundMoney(total) }));
+
+  // Every payment method is listed, even with no payments.
+  const byMethod = Payment.schema.path('method').enumValues.map((method) => {
+    const paymentsWithMethod = payments.filter((payment) => payment.method === method);
+    const total = paymentsWithMethod.reduce((sum, payment) => sum + payment.amount, 0);
+    return { method, total: roundMoney(total), count: paymentsWithMethod.length };
+  });
+
+  const totalCollected = roundMoney(payments.reduce((sum, payment) => sum + payment.amount, 0));
+  res.json({ totalCollected, byMonth, byMethod });
+}
+
+// GET /api/reports/outstanding (D16): every bill with a balance, most overdue first, then the biggest balance.
+export async function getOutstandingReport(req, res) {
+  const bills = await listBillings({ sort: 'dueDate' });
+  const unpaidBills = bills
+    .filter((bill) => bill.remainingBalance > 0)
+    .sort((a, b) => b.daysOverdue - a.daysOverdue || b.remainingBalance - a.remainingBalance)
+    .map((bill) => ({
+      _id: bill._id,
+      tenantName: bill.tenant?.fullName,
+      roomNumber: bill.occupancy?.room?.roomNumber,
+      billingPeriod: bill.billingPeriod,
+      dueDate: bill.dueDate,
+      total: bill.total,
+      totalPaid: bill.totalPaid,
+      remainingBalance: bill.remainingBalance,
+      status: bill.status,
+      daysOverdue: bill.daysOverdue,
+    }));
+
+  const totalOutstanding = roundMoney(unpaidBills.reduce((sum, bill) => sum + bill.remainingBalance, 0));
+  res.json({ totalOutstanding, bills: unpaidBills });
+}
 
 // part as a percentage of whole, 2 decimals. 0 when whole is 0.
 function toPercent(part, whole) {
