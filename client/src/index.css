@@ -1,0 +1,35 @@
+@import 'tailwindcss';
+
+/*
+  DormTrack palette (CLAUDE.md §8).
+  Each --color-NAME becomes Tailwind classes such as bg-NAME, text-NAME and border-NAME.
+*/
+@theme {
+  --color-primary: #2f5d50; /* pine */
+  --color-primary-dark: #244a3f; /* hover and pressed */
+  --color-primary-light: #e3ece9; /* tinted backgrounds */
+  --color-accent: #c8961e; /* brass */
+  --color-accent-light: #f6ecd2;
+  --color-ink: #1b2430; /* main text */
+  --color-ink-muted: #5b6573; /* secondary text */
+  --color-surface: #f1f4f3; /* page background */
+  --color-line: #dce3e0; /* borders and dividers */
+
+  /* Status colors. Text uses the base color, badges use the -light background. */
+  --color-success: #1b6f40; /* available, paid */
+  --color-success-light: #dcf2e4;
+  --color-warning: #925c00; /* partial, near full */
+  --color-warning-light: #fbeccc;
+  --color-danger: #b42318; /* overdue, full */
+  --color-danger-light: #fbe3e0;
+  --color-neutral: #526070; /* maintenance (slate) */
+  --color-neutral-light: #e6eaee;
+}
+
+@layer base {
+  body {
+    background-color: var(--color-surface);
+    color: var(--color-ink);
+    -webkit-font-smoothing: antialiased;
+  }
+}
