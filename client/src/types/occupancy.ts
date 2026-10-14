@@ -30,3 +30,6 @@ export type Occupancy = {
 
 // Inside room details, the room is the page's own room, so it is only an id.
 export type RoomOccupancy = Omit<Occupancy, 'room'> & { room: string }
+
+// Inside tenant details, the tenant is the page's own tenant, so it is only an id.
+export type TenantOccupancy = Omit<Occupancy, 'tenant'> & { tenant: string }
