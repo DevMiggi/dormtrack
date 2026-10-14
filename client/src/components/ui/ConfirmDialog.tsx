@@ -6,6 +6,7 @@ type ConfirmDialogProps = {
   title: string
   message: string
   confirmLabel?: string
+  cancelLabel?: string
   confirmVariant?: 'danger' | 'primary'
   loading?: boolean // true while the request runs; disables both buttons
   error?: string | null // the server's message if the action failed
@@ -18,6 +19,7 @@ function ConfirmDialog({
   title,
   message,
   confirmLabel = 'Delete',
+  cancelLabel = 'Cancel',
   confirmVariant = 'danger',
   loading = false,
   error,
@@ -34,7 +36,7 @@ function ConfirmDialog({
       )}
       <div className="mt-6 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
         <Button variant="secondary" onClick={onCancel} disabled={loading}>
-          Cancel
+          {cancelLabel}
         </Button>
         <Button variant={confirmVariant} onClick={onConfirm} disabled={loading}>
           {loading ? 'Please wait...' : confirmLabel}
