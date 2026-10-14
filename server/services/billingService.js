@@ -1,9 +1,12 @@
 import Billing from '../models/Billing.js';
 import Occupancy from '../models/Occupancy.js';
 import Payment from '../models/Payment.js';
+import '../models/Room.js'; // the populates below only work once Room and Tenant are loaded
+import '../models/Tenant.js';
 import { calculateBillTotal, deriveBillFields } from '../utils/calculations.js';
 import { startOfDay } from '../utils/dates.js';
 import httpError from '../utils/httpError.js';
+import { pickFields } from '../utils/requestHelpers.js';
 import validateId from '../utils/validateId.js';
 
 const AMOUNT_FIELDS = ['rentAmount', 'utilityAmount', 'otherCharges', 'discount'];
@@ -11,14 +14,11 @@ const AMOUNT_FIELDS = ['rentAmount', 'utilityAmount', 'otherCharges', 'discount'
 // What PUT may change. occupancy, tenant and billingPeriod stay fixed.
 const EDITABLE_FIELDS = [...AMOUNT_FIELDS, 'dueDate'];
 
-// Copies the listed fields that were sent, and ignores everything else.
-function pickFields(data, fields) {
-  const picked = {};
-  for (const field of fields) {
-    if (data[field] !== undefined) picked[field] = data[field];
-  }
-  return picked;
-}
+// Bills are returned with the tenant's name and the room number.
+const WITH_TENANT_AND_ROOM = [
+  { path: 'tenant', select: 'firstName lastName' },
+  { path: 'occupancy', select: 'room', populate: { path: 'room', select: 'roomNumber' } },
+];
 
 // 400 for an invalid id, 404 if no bill has it.
 export async function findBillingOrFail(id) {
@@ -51,12 +51,29 @@ export async function withBalance(bill) {
   return result;
 }
 
+// D17 filters: billingPeriod, tenant, and status (D9: status is filtered after deriving it).
+export async function listBillings({ billingPeriod, status, tenant, sort }) {
+  const filter = {};
+  if (billingPeriod) filter.billingPeriod = billingPeriod;
+  if (tenant) {
+    validateId(tenant);
+    filter.tenant = tenant;
+  }
+
+  const bills = await Billing.find(filter).populate(WITH_TENANT_AND_ROOM).sort(sort);
+  const billsWithBalances = await withBalances(bills);
+  return status ? billsWithBalances.filter((bill) => bill.status === status) : billsWithBalances;
+}
+
+export async function getBilling(id) {
+  const bill = await findBillingOrFail(id);
+  return withBalance(await bill.populate(WITH_TENANT_AND_ROOM));
+}
+
 // D9: only overdue bills, most overdue first.
 export async function getOverdueBills() {
   // Only bills due before today can be overdue, so skip the rest in the query.
-  const bills = await Billing.find({ dueDate: { $lt: startOfDay(new Date()) } })
-    .populate('tenant', 'firstName lastName')
-    .populate({ path: 'occupancy', select: 'room', populate: { path: 'room', select: 'roomNumber' } });
+  const bills = await Billing.find({ dueDate: { $lt: startOfDay(new Date()) } }).populate(WITH_TENANT_AND_ROOM);
 
   const billsWithBalances = await withBalances(bills);
   return billsWithBalances
@@ -71,7 +88,7 @@ function checkTotalNotNegative(bill) {
 }
 
 // D8: create a monthly bill for an active occupancy.
-export async function createBilling(data) {
+export async function createBilling(data = {}) {
   if (!data.occupancy) throw httpError(400, 'occupancy is required');
   validateId(data.occupancy);
   const occupancy = await Occupancy.findById(data.occupancy);
@@ -95,7 +112,7 @@ export async function createBilling(data) {
   }
 
   await bill.save();
-  return withBalance(bill);
+  return withBalance(await bill.populate(WITH_TENANT_AND_ROOM));
 }
 
 // D10: once a bill has a payment, its amounts are locked. dueDate can still change.
@@ -112,7 +129,7 @@ export async function updateBilling(id, data) {
   checkTotalNotNegative(bill);
 
   await bill.save();
-  return withBalance(bill);
+  return withBalance(await bill.populate(WITH_TENANT_AND_ROOM));
 }
 
 // D10: a bill with payments cannot be deleted.
