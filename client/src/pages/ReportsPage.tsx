@@ -19,6 +19,12 @@ import { formatBillingPeriod, formatDate, formatLabel, formatPercent, formatPeso
 // Chart colors come from the Tailwind theme (§8): pine marks, light grid, muted axis text.
 const AXIS_TICK = { fill: 'var(--color-ink-muted)', fontSize: 12 }
 const TOOLTIP_STYLE = { borderRadius: 8, border: '1px solid var(--color-line)', fontSize: 13 }
+// Text never takes the bar color (a light bar color would be unreadable as text): tooltip and legend use ink colors.
+const TOOLTIP_ITEM_STYLE = { color: 'var(--color-ink)' }
+
+function legendLabel(value: string) {
+  return <span className="text-ink-muted">{value}</span>
+}
 
 const compactPeso = new Intl.NumberFormat('en-PH', { style: 'currency', currency: 'PHP', notation: 'compact' })
 
@@ -42,7 +48,12 @@ type SimpleBarChartProps = {
 // Animation is off so bars always appear at once (and nothing moves for people who prefer less motion).
 function SimpleBarChart({ data, valueName, formatValue, formatTick = formatValue, horizontal = false }: SimpleBarChartProps) {
   const tooltip = (
-    <Tooltip cursor={{ fill: 'var(--color-surface)' }} contentStyle={TOOLTIP_STYLE} formatter={(value) => [formatValue(Number(value)), valueName]} />
+    <Tooltip
+      cursor={{ fill: 'var(--color-surface)' }}
+      contentStyle={TOOLTIP_STYLE}
+      itemStyle={TOOLTIP_ITEM_STYLE}
+      formatter={(value) => [formatValue(Number(value)), valueName]}
+    />
   )
 
   return (
@@ -253,8 +264,8 @@ function OccupancySection() {
                 <CartesianGrid vertical={false} stroke="var(--color-line)" />
                 <XAxis dataKey="label" tickLine={false} axisLine={{ stroke: 'var(--color-line)' }} tick={AXIS_TICK} />
                 <YAxis allowDecimals={false} tickLine={false} axisLine={false} tick={AXIS_TICK} width={40} />
-                <Tooltip cursor={{ fill: 'var(--color-surface)' }} contentStyle={TOOLTIP_STYLE} />
-                <Legend iconType="square" wrapperStyle={{ fontSize: 12 }} />
+                <Tooltip cursor={{ fill: 'var(--color-surface)' }} contentStyle={TOOLTIP_STYLE} itemStyle={TOOLTIP_ITEM_STYLE} />
+                <Legend iconType="square" wrapperStyle={{ fontSize: 12 }} formatter={legendLabel} />
                 {/* The white stroke leaves a 2px gap between the two stacked parts. */}
                 <Bar dataKey="occupied" name="Occupied" stackId="slots" fill="var(--color-primary)" stroke="#ffffff" strokeWidth={2} maxBarSize={24} isAnimationActive={false} />
                 <Bar dataKey="vacant" name="Vacant" stackId="slots" fill="var(--color-line)" radius={[4, 4, 0, 0]} maxBarSize={24} isAnimationActive={false} />
