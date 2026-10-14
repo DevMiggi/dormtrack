@@ -142,8 +142,28 @@ export async function deleteBilling(id) {
   return bill;
 }
 
+// D12 and D16: turns the optional from/to query values into a paymentDate filter.
+// Whole calendar days: from=2026-10-01&to=2026-10-31 includes all of October 31.
+export function buildPaymentDateFilter(from, to) {
+  const range = {};
+  if (from) {
+    range.$gte = startOfDay(from);
+    if (Number.isNaN(range.$gte.getTime())) throw httpError(400, 'from must be a valid date');
+  }
+  if (to) {
+    const end = startOfDay(to);
+    if (Number.isNaN(end.getTime())) throw httpError(400, 'to must be a valid date');
+    end.setDate(end.getDate() + 1); // up to (not including) the start of the next day
+    range.$lt = end;
+  }
+  if (range.$gte && range.$lt && range.$gte >= range.$lt) {
+    throw httpError(400, 'from cannot be after to');
+  }
+  return Object.keys(range).length > 0 ? range : undefined;
+}
+
 // D11: record a payment. It may not exceed the bill's remaining balance.
-export async function createPayment(data) {
+export async function createPayment(data = {}) {
   if (!data.billing) throw httpError(400, 'billing is required');
   const bill = await findBillingOrFail(data.billing);
   const { remainingBalance } = await withBalance(bill);
@@ -166,5 +186,5 @@ export async function createPayment(data) {
   }
 
   await payment.save();
-  return { payment, billing: await withBalance(bill) };
+  return { payment, billing: await withBalance(await bill.populate(WITH_TENANT_AND_ROOM)) };
 }
