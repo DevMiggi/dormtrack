@@ -18,6 +18,23 @@ export const MAINTENANCE_STATUS_TONE: Record<MaintenanceStatus, BadgeTone> = {
   cancelled: 'neutral',
 }
 
+// D13: which status may come next (the same table as server/utils/maintenanceTransitions.js).
+// The page shows only these buttons; the server still checks every change.
+export const NEXT_STATUSES: Record<MaintenanceStatus, MaintenanceStatus[]> = {
+  open: ['in_progress', 'cancelled'],
+  in_progress: ['resolved', 'cancelled'],
+  resolved: [],
+  cancelled: [],
+}
+
+// The button text for moving a request to each status.
+export const STATUS_ACTION_LABEL: Record<MaintenanceStatus, string> = {
+  open: 'Reopen',
+  in_progress: 'Start work',
+  resolved: 'Resolve',
+  cancelled: 'Cancel',
+}
+
 export const MAINTENANCE_PRIORITY_TONE: Record<MaintenancePriority, BadgeTone> = {
   low: 'neutral',
   medium: 'primary',
