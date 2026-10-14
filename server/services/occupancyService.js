@@ -1,22 +1,15 @@
+import Billing from '../models/Billing.js';
 import Occupancy from '../models/Occupancy.js';
 import Room from '../models/Room.js';
 import Tenant from '../models/Tenant.js';
 import { isAfterToday, startOfDay } from '../utils/dates.js';
 import httpError from '../utils/httpError.js';
+import { pickFields } from '../utils/requestHelpers.js';
 import validateId from '../utils/validateId.js';
 import { calculateAvailability } from './roomService.js';
 
 // The only fields PUT may change (D5). Tenant, room and status are never changed by PUT.
 const EDITABLE_FIELDS = ['bedLabel', 'expectedMoveOutDate', 'depositAmount', 'agreedMonthlyRate', 'notes'];
-
-// Copies the listed fields that were sent, and ignores everything else.
-function pickFields(data, fields) {
-  const picked = {};
-  for (const field of fields) {
-    if (data[field] !== undefined) picked[field] = data[field];
-  }
-  return picked;
-}
 
 // 400 for an invalid id, 404 if no occupancy has it.
 export async function findOccupancyOrFail(id) {
@@ -41,7 +34,7 @@ function checkIsActive(occupancy, action) {
 }
 
 // D4: assign a tenant to a room.
-export async function createOccupancy(data) {
+export async function createOccupancy(data = {}) {
   if (!data.room || !data.tenant) throw httpError(400, 'room and tenant are required');
   validateId(data.room);
   validateId(data.tenant);
@@ -113,4 +106,16 @@ export async function cancelOccupancy(id) {
   checkIsActive(occupancy, 'cancelled');
   occupancy.status = 'cancelled';
   return occupancy.save();
+}
+
+// D5: only a finished (completed or cancelled) occupancy with no bills can be deleted.
+export async function deleteOccupancy(id) {
+  const occupancy = await findOccupancyOrFail(id);
+  if (occupancy.status === 'active') {
+    throw httpError(400, 'An active occupancy cannot be deleted. Complete or cancel it first.');
+  }
+  if (await Billing.exists({ occupancy: occupancy._id })) {
+    throw httpError(400, 'An occupancy with bills cannot be deleted');
+  }
+  await occupancy.deleteOne();
 }
